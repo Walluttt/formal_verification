@@ -1,77 +1,78 @@
 from typing import Set, Dict, List, Tuple
 
-from SystemTransition import TransitionSystem, State as GenericState, SatisfactionFunction
+from TransitionSystem import TransitionSystem, State as GenericState, SatisfactionFunction
 from verifier_invariant import invariant_checker
-from properties import phi_mutex, phi_pc1
+from properties import phi_mutex, phi_not_max
+
+
 # ====================================================================
 # EXEMPLE 1 : Système de Transition du Sémaphore Binaire (Exclusion Mutuelle)
 # ====================================================================
 
-# Redéfinition du type d'État pour cet exemple spécifique (consigne 5)
-# État: (loc1: N/T/C/E, loc2: N/T/C/E, sem: 0/1)
-State = Tuple[str, str, int]
+# --- Composants du Modèle du Sémaphore Binaire  ---
 
-# --- Composants du Modèle du Sémaphore Binaire (Simplifié) ---
+# États: (loc1, loc2, sem)
+State = Tuple[str, str, int] # Redéfinition nécessaire si elle n'est pas dans SystemTransition.py
 
-S_SEM: Set[State] = {
-    ('N', 'N', 1), ('T', 'N', 1), ('N', 'T', 1),
+S_SEM_SIMPLE: Set[State] = {
+    ('N', 'N', 1), ('P', 'N', 1), ('N', 'P', 1),
     ('C', 'N', 0), ('N', 'C', 0),
-    ('T', 'T', 1),
-    ('C', 'T', 0), ('T', 'C', 0),
-    ('E', 'N', 0), ('N', 'E', 0),
-    ('E', 'E', 1),
+    ('P', 'P', 1), # Les deux veulent entrer, sem libre
+    ('P', 'N', 0), ('N', 'P', 0), # Un seul peut entrer, l'autre attend
+    ('C', 'P', 0), ('P', 'C', 0), # Un est critique, l'autre attend
 }
 
-I_SEM: Set[State] = {('N', 'N', 1)} # État initial
+I_SEM_SIMPLE: Set[State] = {('N', 'N', 1)} # État initial
 Prop_SEM: Set[str] = {"PC1", "PC2"}
 
-# Fonction de labellisation L_SEM (associée à l'état s = (loc1, loc2, sem))
-L_SEM: Dict[State, Set[str]] = {
+# Fonction de labellisation L_SEM (aucune modification, car C reste l'état critique)
+L_SEM_SIMPLE: Dict[State, Set[str]] = {
     s: ({"PC1"} if s[0] == 'C' else set()).union(
        {"PC2"} if s[1] == 'C' else set())
-    for s in S_SEM
+    for s in S_SEM_SIMPLE
 }
 
 # Relation de transition simplifiée (Post)
-Post_SEM: Dict[State, Set[State]] = {
-    ('N', 'N', 1): {('T', 'N', 1), ('N', 'T', 1)},
-    ('T', 'N', 1): {('C', 'N', 0)},
-    ('N', 'T', 1): {('N', 'C', 0)},
-    ('T', 'T', 1): {('C', 'T', 0), ('T', 'C', 0)}, # P1 ou P2 passe
-    ('C', 'N', 0): {('E', 'N', 0)},
-    ('N', 'C', 0): {('N', 'E', 0)},
-    ('E', 'N', 0): {('N', 'N', 1)},
-    ('N', 'E', 0): {('N', 'N', 1)},
-    ('C', 'T', 0): {('C', 'T', 0), ('E', 'T', 0)}, # P1 sort ou P2 attend
-    ('T', 'C', 0): {('T', 'C', 0), ('T', 'E', 0)}, # P2 sort ou P1 attend
+Post_SEM_SIMPLE: Dict[State, Set[State]] = {
+    # 1. Tenter d'entrer (N -> P)
+    ('N', 'N', 1): {('P', 'N', 1), ('N', 'P', 1)},
+    
+    # 2. wait() réussit (P -> C si Sem=1)
+    ('P', 'N', 1): {('C', 'N', 0)},
+    ('N', 'P', 1): {('N', 'C', 0)},
+    
+    # 3. wait() en concurrence (P, P, 1) -> un seul entre, l'autre passe à Sem=0 pour attendre
+    ('P', 'P', 1): {('C', 'P', 0), ('P', 'C', 0)}, 
+    
+    # 4. Attendre (si Sem=0, P reste P)
+    ('P', 'N', 0): {('P', 'N', 0)},
+    ('N', 'P', 0): {('N', 'P', 0)},
+    ('C', 'P', 0): {('C', 'P', 0)},
+    ('P', 'C', 0): {('P', 'C', 0)},
+    
+    # 5. signal() (C -> N + Sem=1)
+    ('C', 'N', 0): {('N', 'N', 1)},
+    ('N', 'C', 0): {('N', 'N', 1)},
+
+    # 6. signal() lorsqu'un autre attend (C -> P devient N -> P)
+    ('C', 'P', 0): {('N', 'P', 1)}, # P1 sort, P2 passe à P + Sem=1
+    ('P', 'C', 0): {('P', 'N', 1)}, # P2 sort, P1 passe à P + Sem=1
 }
 
 # --- Construction du Système de Transition ---
-st_semaphore = TransitionSystem(S_SEM, I_SEM, Post_SEM, L_SEM, Prop_SEM)
+st_semaphore_simple = TransitionSystem(S_SEM_SIMPLE, I_SEM_SIMPLE, Post_SEM_SIMPLE, L_SEM_SIMPLE, Prop_SEM)
 
+print("\n====================================================================")
+print(f"EXEMPLE 1 : Système de Transition du Sémaphore (N, P, C)")
 
-# --- Tests de l'Exemple 1 (Sémaphore) ---
-print("====================================================================")
-print(f"EXEMPLE 1 : Système de Transition du Sémaphore Binaire")
+# Test 1 : Exclusion Mutuelle (Phi: non (PC1 AND PC2)) - DOIT RÉUSSIR
+print("\n--- Test 1 : Vérification de l'Exclusion Mutuelle (doit être OUI) ---")
+result_mutex_simple, counterexample_mutex_simple = invariant_checker(st_semaphore_simple, phi_mutex)
 
-# Test 1.1 : Exclusion Mutuelle (Phi: non (PC1 AND PC2)) - DOIT RÉUSSIR
-print("\n--- Test 1.1 : Vérification de l'Exclusion Mutuelle (doit être OUI) ---")
-result_mutex, counterexample_mutex = invariant_checker(st_semaphore, phi_mutex)
-
-if result_mutex:
-    print("✅ Résultat: OUI. L'invariant d'Exclusion Mutuelle est satisfait.")
+if result_mutex_simple:
+    print("Résultat: OUI. L'invariant d'Exclusion Mutuelle est satisfait.")
 else:
-    print(f"❌ Résultat: NON. L'invariant d'Exclusion Mutuelle est violé. Contre-exemple : {counterexample_mutex}")
-
-# Test 1.2 : Invariant Faux (Phi: PC1) - DOIT ÉCHOUER (NON)
-print("\n--- Test 1.2 : Vérification d'un invariant faux (Phi: PC1) (doit être NON) ---")
-result_pc1, counterexample_pc1 = invariant_checker(st_semaphore, phi_pc1)
-
-if result_pc1:
-    print("✅ Résultat: OUI. (Peut arriver si le modèle est mal défini).")
-else:
-    print(f"❌ Résultat: NON. L'invariant PC1 est violé. Contre-exemple : {counterexample_pc1}")
-
+    print(f"Résultat: NON. L'invariant d'Exclusion Mutuelle est violé. Contre-exemple : {counterexample_mutex_simple}")
 
 # ====================================================================
 # EXEMPLE 2 : Système de Transition simple (Compteur) (consigne 5)
@@ -102,11 +103,6 @@ Post_COUNT: Dict[State, Set[State]] = {
     4: {4},
 }
 
-# Invariant à vérifier : Phi_count: L'état n'est jamais MAX (i.e., not MAX)
-def phi_not_max(s: State, ts: TransitionSystem) -> bool:
-    """Vérifie si s |= not MAX."""
-    return "MAX" not in ts.L.get(s, set())
-
 # --- Construction du Système de Transition ---
 st_counter = TransitionSystem(S_COUNT, I_COUNT, Post_COUNT, L_COUNT, Prop_COUNT)
 
@@ -114,14 +110,14 @@ st_counter = TransitionSystem(S_COUNT, I_COUNT, Post_COUNT, L_COUNT, Prop_COUNT)
 print("\n====================================================================")
 print(f"EXEMPLE 2 : Système de Transition Compteur (de 0 à 4)")
 
-# Test 2.1 : Invariant not MAX (doit être NON, car l'état 4 est atteignable et satisfait MAX)
-print("\n--- Test 2.1 : Vérification de l'invariant 'not MAX' (doit être NON) ---")
+# Test 2 : Invariant not MAX (doit être NON, car l'état 4 est atteignable et satisfait MAX)
+print("\n--- Test 2 : Vérification de l'invariant 'not MAX' (doit être NON) ---")
 result_not_max, counterexample_not_max = invariant_checker(st_counter, phi_not_max)
 
 if result_not_max:
-    print("✅ Résultat: OUI. (Le modèle est trop simple pour cela).")
+    print("Résultat: OUI. (Le modèle est trop simple pour cela).")
 else:
-    # Le chemin de violation doit être [0, 1, 2, 3, 4]
-    print(f"❌ Résultat: NON. L'invariant 'not MAX' est violé.")
+
+    print(f"Résultat: NON. L'invariant 'not MAX' est violé.")
     print(f"Contre-exemple (chemin vers l'état de violation): {counterexample_not_max}")
 print("====================================================================")

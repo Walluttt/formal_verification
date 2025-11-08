@@ -1,11 +1,6 @@
-# verifier_invariant.py
-
 from collections import deque
 from typing import Set, Dict, List, Tuple, Callable
-
-# Importation des types essentiels, y compris la classe TransitionSystem
-# VÉRIFIEZ QUE CES LIGNES SONT CORRECTES :
-from SystemTransition import State, TransitionSystem, SatisfactionFunction 
+from TransitionSystem import State, TransitionSystem, SatisfactionFunction 
 from properties import check_satisfaction 
 
 

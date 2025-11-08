@@ -1,5 +1,5 @@
 from typing import Set, Dict, List, Tuple, Callable
-from SystemTransition import State, TransitionSystem, SatisfactionFunction 
+from TransitionSystem import State, TransitionSystem, SatisfactionFunction 
 
 def check_satisfaction(s: State, ts: TransitionSystem, phi_func: SatisfactionFunction) -> bool:
     """
@@ -11,11 +11,13 @@ def check_satisfaction(s: State, ts: TransitionSystem, phi_func: SatisfactionFun
     """
     return phi_func(s, ts)
 
+# Invariant à vérifier : Phi_mutex: Exclusion Mutuelle (i.e., not (PC1 AND PC2))
 def phi_mutex(s: State, ts: TransitionSystem) -> bool:
     """Vérifie si s |= not (PC1 AND PC2)."""
     labels = ts.L.get(s, set())
     return not ("PC1" in labels and "PC2" in labels)
 
-def phi_pc1(s: State, ts: TransitionSystem) -> bool:
-    """Vérifie si s |= PC1."""
-    return "PC1" in ts.L.get(s, set())
+# Invariant à vérifier : Phi_count: L'état n'est jamais MAX (i.e., not MAX)
+def phi_not_max(s: State, ts: TransitionSystem) -> bool:
+    """Vérifie si s |= not MAX."""
+    return "MAX" not in ts.L.get(s, set())
