@@ -44,17 +44,17 @@ Post_SEM_SIMPLE: Dict[State, Set[State]] = {
     # 3. wait() en concurrence (P, P, 1) -> un seul entre, l'autre passe à Sem=0 pour attendre
     ('P', 'P', 1): {('C', 'P', 0), ('P', 'C', 0)}, 
     
-    # 4. Attendre (si Sem=0, P reste P)
+    # 4. wait() (si Sem=0, P reste P)
     ('P', 'N', 0): {('P', 'N', 0)},
     ('N', 'P', 0): {('N', 'P', 0)},
     ('C', 'P', 0): {('C', 'P', 0)},
     ('P', 'C', 0): {('P', 'C', 0)},
     
-    # 5. signal() (C -> N + Sem=1)
+    # 5. return() (C -> N + Sem=1)
     ('C', 'N', 0): {('N', 'N', 1)},
     ('N', 'C', 0): {('N', 'N', 1)},
 
-    # 6. signal() lorsqu'un autre attend (C -> P devient N -> P)
+    # 6. return() lorsqu'un autre attend (C -> P devient N -> P)
     ('C', 'P', 0): {('N', 'P', 1)}, # P1 sort, P2 passe à P + Sem=1
     ('P', 'C', 0): {('P', 'N', 1)}, # P2 sort, P1 passe à P + Sem=1
 }
