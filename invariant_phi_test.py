@@ -12,61 +12,81 @@ from properties import phi_mutex, phi_not_max
 # --- Composants du Modèle du Sémaphore Binaire  ---
 
 # États: (loc1, loc2, sem)
-State = Tuple[str, str, int] # Redéfinition nécessaire si elle n'est pas dans SystemTransition.py
+State = Tuple[str, str, int]
 
+# --- 1. Ensemble des États (S) ---
 S_SEM_SIMPLE: Set[State] = {
-    ('N', 'N', 1), ('P', 'N', 1), ('N', 'P', 1),
-    ('C', 'N', 0), ('N', 'C', 0),
-    ('P', 'P', 1), # Les deux veulent entrer, sem libre
-    ('P', 'N', 0), ('N', 'P', 0), # Un seul peut entrer, l'autre attend
-    ('C', 'P', 0), ('P', 'C', 0), # Un est critique, l'autre attend
+    # -------------- sem = 1 --------------
+    ('N1', 'N2', 1),
+    ('P1', 'N2', 1),
+    ('N1', 'P2', 1),
+    ('P1', 'P2', 1),
+    # -------------- sem = 0 --------------
+    ('C1', 'N2', 0),
+    ('N1', 'C2', 0),
+    ('C1', 'P2', 0),
+    ('P1', 'C2', 0),
+    #Etats non accessibles depuis l'état initial
+    ('C1', 'C2', 0),
+    ('C1', 'C2', 1),
+    ('P1', 'C2', 1),
+    ('C1', 'P2', 1),
+
 }
+# --- 2. Ensemble des États Initiaux (I) ---
+I_SEM_SIMPLE: Set[State] = {('N1', 'N2', 1)}
 
-I_SEM_SIMPLE: Set[State] = {('N', 'N', 1)} # État initial
-Prop_SEM: Set[str] = {"PC1", "PC2"}
+# --- 3. Propositions Atomiques (Prop) ---
+# PC1 reste vrai si P1 est en C, PC2 si P2 est en C.
+Prop_SEM: Set[str] = {"C1", "C2"}
 
-# Fonction de labellisation L_SEM (aucune modification, car C reste l'état critique)
-L_SEM_SIMPLE: Dict[State, Set[str]] = {
-    s: ({"PC1"} if s[0] == 'C' else set()).union(
-       {"PC2"} if s[1] == 'C' else set())
-    for s in S_SEM_SIMPLE
-}
+# --- 4. Fonction de Labellisation (L) ---
+L_SEM_SIMPLE = {}
+for s in S_SEM_SIMPLE:
+    props = set()
+    if s[0] == 'C1':
+        props.add("C1")
+    if s[1] == 'C2':
+        props.add("C2")
+    L_SEM_SIMPLE[s] = props
 
-# Relation de transition simplifiée (Post)
+# --- 5. Relation de Transition (Post) ---
 Post_SEM_SIMPLE: Dict[State, Set[State]] = {
-    # 1. Tenter d'entrer (N -> P)
-    ('N', 'N', 1): {('P', 'N', 1), ('N', 'P', 1)},
-    
-    # 2. wait() réussit (P -> C si Sem=1)
-    ('P', 'N', 1): {('C', 'N', 0)},
-    ('N', 'P', 1): {('N', 'C', 0)},
-    
-    # 3. wait() en concurrence (P, P, 1) -> un seul entre, l'autre passe à Sem=0 pour attendre
-    ('P', 'P', 1): {('C', 'P', 0), ('P', 'C', 0)}, 
-    
-    # 4. wait() (si Sem=0, P reste P)
-    ('P', 'N', 0): {('P', 'N', 0)},
-    ('N', 'P', 0): {('N', 'P', 0)},
-    ('C', 'P', 0): {('C', 'P', 0)},
-    ('P', 'C', 0): {('P', 'C', 0)},
-    
-    # 5. return() (C -> N + Sem=1)
-    ('C', 'N', 0): {('N', 'N', 1)},
-    ('N', 'C', 0): {('N', 'N', 1)},
+    # Transition des états accessibles par l'état initial ('N1', 'N2', 1)
+    # =========================================================
+    # sem = 1  (personne n’est en C)
+    # =========================================================
+    ('N1', 'N2', 1): {('N1', 'N2', 1), ('P1', 'N2', 1), ('N1', 'P2', 1)},
+    ('P1', 'N2', 1): {('P1', 'N2', 1), ('C1', 'N2', 0)},
+    ('N1', 'P2', 1): {('N1', 'P2', 1), ('N1', 'C2', 0)},
+    ('P1', 'P2', 1): {('P1', 'P2', 1), ('C1', 'P2', 0), ('P1', 'C2', 0)},
 
-    # 6. return() lorsqu'un autre attend (C -> P devient N -> P)
-    ('C', 'P', 0): {('N', 'P', 1)}, # P1 sort, P2 passe à P + Sem=1
-    ('P', 'C', 0): {('P', 'N', 1)}, # P2 sort, P1 passe à P + Sem=1
+    # =========================================================
+    # sem = 0  (exactement un processus en C)
+    # =========================================================
+    # --- côté 1 en C ------------------------------------------------
+    ('C1', 'N2', 0): {('C1', 'N2', 0), ('N1', 'N2', 1),          # signal / rien
+                      ('C1', 'P2', 0)},                           # P2 veut entrer
+    ('C1', 'P2', 0): {('C1', 'P2', 0), ('N1', 'P2', 1)},         # signal / rester bloqué
+
+    # --- côté 2 en C ------------------------------------------------
+    ('N1', 'C2', 0): {('N1', 'C2', 0), ('N1', 'N2', 1),          # signal / rien
+                      ('P1', 'C2', 0)},                           # P1 veut entrer
+    ('P1', 'C2', 0): {('P1', 'C2', 0), ('P1', 'N2', 1)},         # signal / rester bloqué
+    # Transition des états non accessibles par l'état initial
+    ('C1', 'C2', 0): {('C1', 'C2', 0)},                           # bloqué
+    ('C1', 'C2', 1): {('C1', 'C2', 1)},                           # bloqué
+    ('P1', 'C2', 1): {('P1', 'C2', 1), ('C1', 'C2', 0)},         # P1 entre en C
+    ('C1', 'P2', 1): {('C1', 'P2', 1), ('C1', 'C2', 0)},         # P2 entre en C
 }
 
-# --- Construction du Système de Transition ---
 st_semaphore_simple = TransitionSystem(S_SEM_SIMPLE, I_SEM_SIMPLE, Post_SEM_SIMPLE, L_SEM_SIMPLE, Prop_SEM)
 
 print("\n====================================================================")
 print(f"EXEMPLE 1 : Système de Transition du Sémaphore (N, P, C)")
 
-# Test 1 : Exclusion Mutuelle (Phi: non (PC1 AND PC2)) - DOIT RÉUSSIR
-print("\n--- Test 1 : Vérification de l'Exclusion Mutuelle (doit être OUI) ---")
+# Test 1 : Exclusion Mutuelle (Phi: non (C1 AND C2)) - DOIT RÉUSSIR
+print("\n--- Test : Vérification de l'Exclusion Mutuelle (doit être OUI) ---")
 result_mutex_simple, counterexample_mutex_simple = invariant_checker(st_semaphore_simple, phi_mutex)
 
 if result_mutex_simple:
@@ -111,7 +131,7 @@ print("\n====================================================================")
 print(f"EXEMPLE 2 : Système de Transition Compteur (de 0 à 4)")
 
 # Test 2 : Invariant not MAX (doit être NON, car l'état 4 est atteignable et satisfait MAX)
-print("\n--- Test 2 : Vérification de l'invariant 'not MAX' (doit être NON) ---")
+print("\n--- Test : Vérification de l'invariant 'not MAX' (doit être NON) ---")
 result_not_max, counterexample_not_max = invariant_checker(st_counter, phi_not_max)
 
 if result_not_max:
