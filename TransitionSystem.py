@@ -2,7 +2,7 @@ from collections import deque
 from typing import Set, Dict, List, Tuple, Callable
 
 # Définition de types pour la clarté
-# Un état est simplement un hashable (comme un entier ou un tuple)
+# Un état est simplement un hashable
 State = int
 # Un ensemble de propositions atomiques est un ensemble de chaînes de caractères
 PropSet = Set[str]

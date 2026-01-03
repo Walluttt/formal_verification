@@ -80,6 +80,7 @@ Post_SEM_SIMPLE: Dict[State, Set[State]] = {
     ('C1', 'P2', 1): {('C1', 'P2', 1), ('C1', 'C2', 0)},         # P2 entre en C
 }
 
+# --- Construction du Système de Transition ---
 st_semaphore_simple = TransitionSystem(S_SEM_SIMPLE, I_SEM_SIMPLE, Post_SEM_SIMPLE, L_SEM_SIMPLE, Prop_SEM)
 
 print("\n====================================================================")

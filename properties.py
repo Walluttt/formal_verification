@@ -11,14 +11,14 @@ def check_satisfaction(s: State, ts: TransitionSystem, phi_func: SatisfactionFun
     """
     return phi_func(s, ts)
 
-# Invariant à vérifier : Phi_mutex: Exclusion Mutuelle (i.e., not (PC1 AND PC2))
+# Invariant à vérifier : Phi_mutex: Exclusion Mutuelle (i.e., not (C1 AND C2))
 def phi_mutex(s: State, ts: TransitionSystem) -> bool:
     """Vérifie si s |= not (C1 AND C2)."""
     
     # 1. Récupérer les labels de l'état s.
     labels = ts.L.get(s, set())
     
-    # 2. Vérifier si l'état s satisfait l'expression de violation (PC1 AND PC2).
+    # 2. Vérifier si l'état s satisfait l'expression de violation (C1 AND C2).
     violation_occurs = ("C1" in labels) and ("C2" in labels)
     
     # 3. La propriété d'invariant est l'inverse de la violation.
